@@ -1,9 +1,14 @@
 import java.awt.*;
 import javax.swing.*;
 import javax.sound.midi.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.*;
+import java.net.Socket;
 import java.util.*;
-import java.awt.event.*;
+
 
 
 public class BeatBox {
@@ -12,8 +17,18 @@ public class BeatBox {
     ArrayList<JCheckBox> checkboxList;
     Sequencer sequencer;
     Sequence sequence;
+    Sequence mySequence = null;
     Track track;
     JFrame theFrame;
+    JList incomingList;
+    JTextField userMessage;
+    int nextNum;
+    Vector<String> listVector = new Vector<String>();
+    String username;
+    ObjectOutputStream out;
+    ObjectInputStream in;
+    HashMap<String, boolean[]> otherSeqsMap = new HashMap<String, boolean[]>();
+
 
     String[] instrumentNames = {"Bass Drum", "Closed Hi-Hat",
             "Open Hi-Hat","Acoustic Snare", "Crash Cymbal", "Hand Clap",
@@ -24,7 +39,27 @@ public class BeatBox {
     int[] instrument = {35,42,46,28,49,39,50,60,70,72,64,56,58,47,67,63};
 
     public static void main(String[] args) {
-        new BeatBox().buildGUI();
+        if (args.length > 0) {
+            new BeatBox().startUp(args[0]);
+        } else {
+            System.out.println("Please provide a username as a command-line argument.");
+        }
+    }
+
+    public void startUp(String name){
+        username = name;
+
+        try{
+            Socket sock = new Socket("47.247.150.6",4242);
+            out = new ObjectOutputStream(sock.getOutputStream());
+            in = new ObjectInputStream(sock.getInputStream());
+            Thread remote = new Thread (new RemoteReader());
+            remote.start();
+        } catch (Exception ex){
+            System.out.println("couldn't connect");
+        }
+        setUpMidi();
+        buildGUI();
     }
 
     private void buildGUI() {
@@ -52,6 +87,20 @@ public class BeatBox {
         JButton downTempo = new JButton("Tempo Down");
         downTempo.addActionListener(new MyDownTempoListener());
         buttonBox.add(downTempo);
+
+        JButton sendIt = new JButton("Send");
+        sendIt.addActionListener(new MySendListener());
+        buttonBox.add(sendIt);
+
+        userMessage = new JTextField();
+        buttonBox.add(userMessage);
+
+        incomingList = new JList<>();
+        incomingList.addListSelectionListener(new MyListSelectionListener());
+        incomingList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane theList = new JScrollPane(incomingList);
+        buttonBox.add(theList);
+        incomingList.setListData(listVector);
 
         Box NameBox = new Box(BoxLayout.Y_AXIS);
         for(int i = 0; i < 16; i++) {
@@ -127,35 +176,7 @@ public class BeatBox {
         } catch(Exception e){e.printStackTrace();}
     }
 
-    public class MyStartListener implements ActionListener{
-        public void actionPerformed(ActionEvent a) {
-            buildTrackAndStart();
 
-        }
-    }
-
-    public class MyStopListener implements ActionListener{
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            sequencer.stop();
-        }
-    }
-
-    public class MyUpTempoListener implements ActionListener{
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            float tempoFactor = sequencer.getTempoFactor();
-            sequencer.setTempoFactor((float) (tempoFactor*1.03));
-        }
-    }
-
-    public class MyDownTempoListener implements ActionListener{
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            float tempoFactor = sequencer.getTempoFactor();
-            sequencer.setTempoFactor((float) (tempoFactor*.97));
-        }
-    }
 
     public void makeTracks(int[] list){
         for (int i= 0; i<16; i++){
@@ -178,8 +199,33 @@ public class BeatBox {
         } catch (Exception e) {e.printStackTrace();}
         return event;
     }
+    public class MyStopListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            sequencer.stop();
+        }
+    }
+    public class MyStartListener implements ActionListener {
+        public void actionPerformed(ActionEvent a) {
+            buildTrackAndStart();
 
-    public class MySendListener implements ActionListener{
+        }
+    }
+    public class MyUpTempoListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            float tempoFactor = sequencer.getTempoFactor();
+            sequencer.setTempoFactor((float) (tempoFactor*1.03));
+        }
+    }
+    public class MyDownTempoListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            float tempoFactor = sequencer.getTempoFactor();
+            sequencer.setTempoFactor((float) (tempoFactor*.97));
+        }
+    }
+    public class MySendListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
             boolean[] checkboxState = new boolean[256];
@@ -190,17 +236,59 @@ public class BeatBox {
                     checkboxState[i] = true;
                 }
             }
+            String messageToSend = null;
             try {
-                FileOutputStream fileStream = new FileOutputStream(new File("Checkbox.ser"));
-                ObjectOutputStream os = new ObjectOutputStream(fileStream);
-                os.writeObject(checkboxState);
+               out.writeObject(username + nextNum + ":" + userMessage.getText());
             } catch (Exception ex){
-                ex.printStackTrace();
+                System.out.println("Couldn't Send");
+            }
+            userMessage.setText("");
+        }
+    }
+    public class MyListSelectionListener implements ListSelectionListener {
+        @Override
+        public void valueChanged(ListSelectionEvent e) {
+            if (!e.getValueIsAdjusting()){
+                String selected = (String) incomingList.getSelectedValue();
+                if (selected != null){
+                    boolean[] selectedState = (boolean[]) otherSeqsMap.get(selected);
+                    changeSequence(selectedState);
+                    sequencer.stop();
+                    buildTrackAndStart();
+                }
+            }
+        }
+    }
+    public class RemoteReader implements Runnable{
+        boolean[] checkboxState = null;
+        String nameToShow = null;
+        Object obj = null;
+
+        public void run(){
+            try{
+                while ((obj = in.readObject()) != null){
+                    System.out.println("got an object from the server");
+                    System.out.println(obj.getClass());
+                    String nameToShow = (String) obj;
+                    checkboxState = (boolean[]) in.readObject();
+                    otherSeqsMap.put(nameToShow, checkboxState);
+                    listVector.add(nameToShow);
+                    incomingList.setListData(listVector);
+                }
+            } catch (Exception ex) {ex.printStackTrace();}
+        }
+    }
+    public class MyPlayMineListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if (mySequence != null){
+                sequence = mySequence;
+
             }
         }
     }
 
-    public class MyReadInListener implements ActionListener{
+ /*   public class MyReadInListener implements ActionListener {
 
         @Override
         public void actionPerformed(ActionEvent e) {
@@ -224,7 +312,20 @@ public class BeatBox {
             sequencer.stop();
             buildTrackAndStart();
         }
+    } */
+    public void changeSequence(boolean[] checkboxState){
+        for (int i = 0; i < 256; i++){
+            JCheckBox check = (JCheckBox) checkboxList.get(i);
+            if (checkboxState[i]){
+                check.setSelected(true);
+            }
+            else {
+                check.setSelected(false);
+            }
+        }
     }
+
+
 
 
 }
