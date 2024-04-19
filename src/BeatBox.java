@@ -50,13 +50,14 @@ public class BeatBox {
         username = name;
 
         try{
-            Socket sock = new Socket("172.25.250.36",4242);
-            out = new ObjectOutputStream(sock.getOutputStream());
+            Socket sock = new Socket("172.25.250.36",2610);
             in = new ObjectInputStream(sock.getInputStream());
+            out = new ObjectOutputStream(sock.getOutputStream());
             Thread remote = new Thread (new RemoteReader());
             remote.start();
+            System.out.println("Connected");
         } catch (Exception ex){
-            System.out.println("couldn't connect");
+            System.out.println("Couldn't Connect");
         }
         setUpMidi();
         buildGUI();
@@ -324,6 +325,8 @@ public class BeatBox {
             }
         }
     }
+
+
 
 
 
