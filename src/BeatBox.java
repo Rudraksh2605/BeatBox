@@ -50,7 +50,7 @@ public class BeatBox {
         username = name;
 
         try{
-            Socket sock = new Socket("47.247.150.6",4242);
+            Socket sock = new Socket("172.25.250.36",4242);
             out = new ObjectOutputStream(sock.getOutputStream());
             in = new ObjectInputStream(sock.getInputStream());
             Thread remote = new Thread (new RemoteReader());
@@ -288,7 +288,7 @@ public class BeatBox {
         }
     }
 
- /*   public class MyReadInListener implements ActionListener {
+    public class MyReadInListener implements ActionListener {
 
         @Override
         public void actionPerformed(ActionEvent e) {
@@ -312,7 +312,7 @@ public class BeatBox {
             sequencer.stop();
             buildTrackAndStart();
         }
-    } */
+    }
     public void changeSequence(boolean[] checkboxState){
         for (int i = 0; i < 256; i++){
             JCheckBox check = (JCheckBox) checkboxList.get(i);
