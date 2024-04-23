@@ -50,7 +50,7 @@ public class BeatBox {
         username = name;
 
         try{
-            Socket sock = new Socket("172.25.250.36",2610);
+            Socket sock = new Socket("172.25.250.36",5252);
             in = new ObjectInputStream(sock.getInputStream());
             out = new ObjectOutputStream(sock.getOutputStream());
             Thread remote = new Thread (new RemoteReader());

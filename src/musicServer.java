@@ -44,7 +44,7 @@ public class musicServer {
         clientOutputStreams = new ArrayList<ObjectOutputStream>();
 
         try {
-            ServerSocket serverSocket = new ServerSocket(4242);
+            ServerSocket serverSocket = new ServerSocket(5252);
 
             while (true){
                 Socket clientSocket = serverSocket.accept();
