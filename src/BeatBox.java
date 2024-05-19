@@ -6,7 +6,10 @@ import javax.swing.event.ListSelectionListener;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.*;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.*;
 
 
@@ -49,15 +52,20 @@ public class BeatBox {
     public void startUp(String name){
         username = name;
 
-        try{
-            Socket sock = new Socket("172.25.250.36",5252);
+        try {
+            Socket sock = new Socket();
+            sock.connect(new InetSocketAddress("172.25.250.36", 5252));
             in = new ObjectInputStream(sock.getInputStream());
             out = new ObjectOutputStream(sock.getOutputStream());
             Thread remote = new Thread (new RemoteReader());
             remote.start();
+            Thread server = new Thread(new MusicServer());
+            server.start();
             System.out.println("Connected");
-        } catch (Exception ex){
-            System.out.println("Couldn't Connect");
+        } catch (UnknownHostException ex) {
+            System.out.println("Could not find the server at the specified address.");
+        } catch (IOException ex) {
+            System.out.println("Could not connect to the server.");
         }
         setUpMidi();
         buildGUI();
@@ -325,7 +333,6 @@ public class BeatBox {
             }
         }
     }
-
 
 
 
